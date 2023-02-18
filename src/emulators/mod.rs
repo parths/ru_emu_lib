@@ -17,7 +17,8 @@ pub trait EmuTrait {
 }
 
 pub trait KeyboardDriver {
-    fn on_keypress(self: &mut Self)
+    fn on_key_press(self: &mut Self);
+    fn on_key_release(self: &mut Self);
 }
 
 pub mod chip8_emu;
