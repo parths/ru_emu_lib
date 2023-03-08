@@ -1,7 +1,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use super::{ EmuTrait, ScreenResolution };
+use super::{ EmuTrait, ScreenResolution, CpuInfo, RegisterInfo, RegisterSize };
 use rand::Rng;
 
 const PROGRAM_START: usize = 0x200;
@@ -21,6 +21,39 @@ pub struct Chip8Emu {
     keys: Vec<bool>, 
     wait_for_key: bool, 
     font_sprite_offset: u16, 
+
+    curr_opcode: u16, 
+}
+
+impl CpuInfo for Chip8Emu {
+    fn get_data_registers(self: &Self) -> Vec<RegisterInfo> {
+        let mut c_info = Vec::<RegisterInfo>::new();
+        for i in 0..16 {
+            c_info.push(RegisterInfo {
+                reg_size_bits: RegisterSize::RegSize8, 
+                reg_value: self.reg[i] as u64, 
+            });
+        }
+        c_info.push(RegisterInfo {
+            reg_size_bits: RegisterSize::RegSize16, 
+            reg_value: self.program_counter as u64, 
+        });
+        c_info.push(RegisterInfo {
+            reg_size_bits: RegisterSize::RegSize16, 
+            reg_value: self.index_register as u64, 
+        });
+        c_info
+    }
+
+    fn get_current_instr(self: &Self) -> String {
+        self.translate_opcode(self.curr_opcode)
+    }
+    fn get_next_instr(self: &Self) -> String {
+        let mut opcode: u16 = (self.memory[self.program_counter as usize] & 0xff) as u16;
+        opcode = opcode << 8;
+        opcode = opcode | ((self.memory[(self.program_counter + 1) as usize] & 0xff) as u16);
+        self.translate_opcode(opcode)
+    }
 }
 
 impl EmuTrait for Chip8Emu {
@@ -64,6 +97,23 @@ impl EmuTrait for Chip8Emu {
         }
     }
 
+    fn get_cpu_screen_resolution(self: &Self) -> ScreenResolution {
+        ScreenResolution {
+            // 2 chars for register name
+            // + 4 chars for register value
+            // + 1 space char
+            // * 8 pixels per char
+            // * 1 pixel space per char (rounded to 8 pixels total)
+            width: 64, 
+            // 1 row for each register
+            // + 1 row for pc
+            // + 1 row for index reg (IR)
+            // + 1 row for delay timer
+            // + 1 row for audio timer
+            height: 184, 
+        }
+    }
+
     fn draw_to_buffer_rgba(self: &Self, buf: &mut Vec<u8>, target_res: &ScreenResolution) 
         -> Result<bool, bool> {
 
@@ -78,10 +128,11 @@ impl EmuTrait for Chip8Emu {
             display_buffer_x = x / pixel_width;
             for y in 0..target_res.height {
                 display_buffer_y = y / pixel_height;
+                let arr_offset = y * 4 * target_res.width + (x * 4);
                 let val = self.display_buffer[(display_buffer_y * screen_res.width + display_buffer_x) as usize];
-                buf[(y * 4 * target_res.width + (x * 4)) as usize] = val;
-                buf[(y * 4 * target_res.width + (x * 4) + 1) as usize] = val;
-                buf[(y * 4 * target_res.width + (x * 4) + 2) as usize] = val;
+                buf[(arr_offset) as usize] = val;
+                buf[(arr_offset + 1) as usize] = val;
+                buf[(arr_offset + 2) as usize] = val;
             }
         }
 
@@ -96,13 +147,10 @@ impl EmuTrait for Chip8Emu {
             self.sound_timer -= 1;
         }
         if !self.wait_for_key {
-            let pc = self.program_counter;
-            let opcode = self.fetch_opcode();
-            // println!("[Running]: {:?}", self.reg);
-            // println!("[Running]: {:4x}", opcode);
-            println!("0x{:4x} - {}", pc, self.translate_opcode(opcode));
-            self.exec_opcode(opcode);
-            // println!("[Running]: {:?}", self.reg);
+            // let pc = self.program_counter;
+            self.curr_opcode = self.fetch_opcode();
+            // println!("0x{:4x} - {}", pc, self.translate_opcode(opcode));
+            self.exec_opcode(self.curr_opcode);
             if self.wait_for_key {
                 self.program_counter -= 2;
             }
@@ -127,6 +175,8 @@ impl Chip8Emu {
             keys: vec![false; 0xff], 
             wait_for_key: false, 
             font_sprite_offset: 0, 
+
+            curr_opcode: 0, 
         }
     }
 
@@ -138,7 +188,7 @@ impl Chip8Emu {
         opcode
     }
 
-    fn translate_opcode(self: &mut Self, opcode: u16) -> String {
+    fn translate_opcode(self: &Self, opcode: u16) -> String {
         let op = ((opcode & 0xf000) >> 12, 
         (opcode & 0x0f00) >> 8, 
         (opcode & 0x00f0) >> 4, 
@@ -347,9 +397,9 @@ impl Chip8Emu {
         let z: i16 = self.reg[x as usize] as i16 
             - self.reg[y as usize] as i16;
         if self.reg[x as usize] < self.reg[y as usize] {
-            self.reg[15] = 1
+            self.reg[15] = 0
         } else {
-            self.reg[15] = 0;
+            self.reg[15] = 1;
         }
         self.reg[x as usize] = (z & 0xff) as u8;
     }

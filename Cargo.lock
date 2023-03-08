@@ -215,6 +215,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ru_emu_lib"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "rand 0.8.5",
+ "sdl2",
+]
+
+[[package]]
 name = "sdl2"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -235,15 +244,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c543ce8a6e33a30cb909612eeeb22e693848211a84558d5a00bb11e791b7ab7"
 dependencies = [
  "cfg-if 0.1.10",
-]
-
-[[package]]
-name = "sdl_hello"
-version = "0.1.0"
-dependencies = [
- "gl",
- "rand 0.8.5",
- "sdl2",
 ]
 
 [[package]]
